@@ -1,0 +1,18 @@
+[
+    {kernel, [
+        {logger_level, info}
+    ]},
+    {nova, [
+        {use_stacktrace, true},
+        {environment, dev},
+        {cowboy_configuration, #{port => 8080}},
+        {dev_mode, true},
+        {bootstrap_application, gakudan_liveboard},
+        {plugins, [
+            {pre_request, nova_request_plugin, #{decode_json_body => true}}
+        ]}
+    ]},
+    {arizona_nova, [
+        {live_reload, true}
+    ]}
+].

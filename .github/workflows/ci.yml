@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.1.0
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      version-file: '.tool-versions'
+      enable-ct: false
+      enable-ex-doc: false
+      enable-hank: false
+      enable-audit: false
+      enable-coverage: false
+      enable-elp-lint: false
+      enable-elp-eqwalize: false
+      enable-sbom: false
+      enable-sbom-scan: false
+      enable-dependency-submission: false
+      enable-summary: true

@@ -1,0 +1,9 @@
+## Name of the node
+-sname gakudan_liveboard
+
+## Cookie for distributed erlang
+-setcookie gakudan_liveboard_cookie
+
+## Enable kernel poll and SMP
++K true
++A30

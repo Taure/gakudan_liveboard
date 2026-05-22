@@ -1,0 +1,19 @@
+{application, gakudan_liveboard, [
+    {description, "Live dashboard for gakudan multi-agent runs"},
+    {vsn, git},
+    {registered, []},
+    {mod, {gakudan_liveboard_app, []}},
+    {included_applications, []},
+    {applications, [
+        kernel,
+        stdlib,
+        nova,
+        arizona_nova,
+        gakudan
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, []},
+    {licenses, ["MIT"]},
+    {links, [{"GitHub", "https://github.com/Taure/gakudan_liveboard"}]}
+]}.
