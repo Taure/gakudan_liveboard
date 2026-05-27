@@ -5,7 +5,19 @@ starts a fresh planner/coder pair that emits one entry every ~1.5s so the
 liveboard has something to show.
 """.
 
--export([start_demo_run/0]).
+-export([start_demo_run/0, nudge/0]).
+
+%% Append an entry to the latest run's blackboard, to exercise the live SSE
+%% append path from an rpc call.
+nudge() ->
+    case gakudan_registry:all() of
+        [{RunId, _} | _] ->
+            {ok, BB} = gakudan_run:blackboard(RunId),
+            {ok, _} = gakudan_blackboard:append(BB, user, ~"live append test"),
+            RunId;
+        [] ->
+            no_runs
+    end.
 
 start_demo_run() ->
     Self = self(),
@@ -16,12 +28,14 @@ start_demo_run() ->
 
 run(_Caller) ->
     {ok, Script} = gakudan_llm_stub_script:start_link([
-        slow(~"""
+        slow(
+            ~"""
         1. Define the API surface.
         2. Sketch the data model.
         3. Wire it up.
         @demo_coder, take it from here.
-        """),
+        """
+        ),
         slow(
             ~"""
             Implemented all three steps. Ready for review.

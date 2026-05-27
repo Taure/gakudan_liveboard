@@ -8,7 +8,8 @@
         kernel,
         stdlib,
         nova,
-        arizona_nova,
+        datastar,
+        datastar_nova,
         gakudan
     ]},
     {env, []},
