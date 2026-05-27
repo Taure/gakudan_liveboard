@@ -8,4 +8,8 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    {ok, {#{strategy => one_for_all}, []}}.
+    SupFlags = #{strategy => one_for_one, intensity => 5, period => 10},
+    Children = [
+        #{id => gakudan_liveboard_stats, start => {gakudan_liveboard_stats, start_link, []}}
+    ],
+    {ok, {SupFlags, Children}}.
