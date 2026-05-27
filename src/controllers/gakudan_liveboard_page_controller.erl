@@ -233,7 +233,7 @@ page(Title, Content) ->
         ~"</title><link rel=\"stylesheet\" href=\"/assets/css/app.css\">",
         ~"<script type=\"module\" src=\"/assets/js/datastar.js\"></script></head>",
         ~"<body><div id=\"app\"><header class=\"site-header\">",
-        ~"<h1><a href=\"/\"><span class=\"g-mark\">\xe6\xa5\xbd\xe5\x9b\xa3</span> gakudan</a></h1>",
+        ~"<h1><a href=\"/\"><span class=\"g-mark\">\x{697D}\x{56E3}</span> gakudan</a></h1>",
         ~"<span class=\"tagline\">liveboard &mdash; the conductor's stand</span>",
         ~"</header><div class=\"container\">",
         Content,
