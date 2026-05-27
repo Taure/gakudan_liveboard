@@ -27,7 +27,7 @@ act(Req, Fun, Label) ->
     Msg =
         case Fun(RunId) of
             ok -> Label;
-            {error, Reason} -> [Label, ~" - ", to_bin(Reason)]
+            {error, Reason} -> [Label, ~" - ", atom_to_binary(Reason)]
         end,
     %% One-shot Datastar SSE response via Nova's built-in handle_status: SSE
     %% headers + the patch as the body. (The run change itself flows back over
@@ -37,10 +37,6 @@ act(Req, Fun, Label) ->
 
 toast(Msg) ->
     [~"<span id=\"toast\" class=\"toast\">", html_escape(Msg), ~"</span>"].
-
-to_bin(B) when is_binary(B) -> B;
-to_bin(A) when is_atom(A) -> atom_to_binary(A);
-to_bin(T) -> iolist_to_binary(io_lib:format("~p", [T])).
 
 html_escape(B0) ->
     B = iolist_to_binary(B0),
