@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>gakudan liveboard</title>
+<!--
+  Static design prototype for gakudan_liveboard - "the conductor's console".
+  Fully self-hosted: fonts are bundled WOFF2, the grain is an inline SVG.
+  This page makes ZERO off-origin requests (GDPR by construction).
+  It is the visual spec the Arizona views are ported from.
+-->
+<style>
+  /* ---- self-hosted fonts (bundled in priv/static/assets/fonts) ---- */
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("../../priv/static/assets/fonts/instrument-serif-latin-400-normal.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "Instrument Serif";
+    src: url("../../priv/static/assets/fonts/instrument-serif-latin-400-italic.woff2") format("woff2");
+    font-weight: 400; font-style: italic; font-display: swap;
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    src: url("../../priv/static/assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    src: url("../../priv/static/assets/fonts/ibm-plex-mono-latin-400-italic.woff2") format("woff2");
+    font-weight: 400; font-style: italic; font-display: swap;
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    src: url("../../priv/static/assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+    font-weight: 500; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    src: url("../../priv/static/assets/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+    font-weight: 600; font-style: normal; font-display: swap;
+  }
+
+  :root {
+    --ink:        #0a0c12;
+    --ink-2:      #0e111a;
+    --ink-3:      #141826;
+    --ink-4:      #1b2031;
+    --line:       rgba(236, 228, 211, 0.09);
+    --line-strong:rgba(236, 228, 211, 0.16);
+    --paper:      #ece4d3;
+    --paper-dim:  #aaa496;
+    --paper-faint:#736f64;
+    --brass:      #d8a84b;
+    --brass-2:    #f0c971;
+    --brass-soft: rgba(216, 168, 75, 0.13);
+    --signal:     #62cdcd;
+    --signal-soft:rgba(98, 205, 205, 0.13);
+    --ok:         #84b88f;
+    --warn:       #e0b354;
+    --bad:        #db8070;
+    --bad-soft:   rgba(219, 128, 112, 0.13);
+    --slate:      #565d72;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+    --r: 10px;
+    --r-sm: 7px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--paper);
+    background-color: var(--ink);
+    /* layered depth: a faint warm light over the conductor's stand */
+    background-image:
+      radial-gradient(1100px 620px at 78% -8%, rgba(216, 168, 75, 0.07), transparent 60%),
+      radial-gradient(900px 700px at 8% 108%, rgba(98, 205, 205, 0.05), transparent 55%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* grain overlay - inline SVG, no external request */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.32;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+  #app { position: relative; z-index: 1; min-height: 100%; display: flex; flex-direction: column; }
+
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--brass-soft); }
+
+  /* ---------- header ---------- */
+  .topbar {
+    display: flex; align-items: baseline; gap: 22px;
+    padding: 18px 26px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(20,24,38,0.55), transparent);
+  }
+  .wordmark {
+    font-family: var(--serif);
+    font-size: 30px; letter-spacing: 0.4px; color: var(--paper);
+    line-height: 1;
+  }
+  .wordmark .g-mark { color: var(--brass); }
+  .tagline {
+    font-family: var(--serif); font-style: italic;
+    font-size: 16px; color: var(--paper-faint);
+  }
+  .topbar .spacer { flex: 1; }
+  .clock {
+    color: var(--paper-dim); font-size: 11.5px; letter-spacing: 0.4px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .clock .live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--signal);
+    box-shadow: 0 0 0 0 var(--signal); animation: pulse 2.2s infinite;
+  }
+
+  /* ---------- 3-column console ---------- */
+  .console {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 290px minmax(0, 1fr) 332px;
+    gap: 0;
+  }
+  .col { min-width: 0; }
+  .rail-left  { border-right: 1px solid var(--line); }
+  .rail-right { border-left: 1px solid var(--line); background: rgba(10,12,18,0.4); }
+
+  .rail-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 16px 18px 10px;
+  }
+  .rail-head h2 {
+    margin: 0; font-family: var(--serif); font-weight: 400;
+    font-size: 18px; color: var(--paper); letter-spacing: 0.3px;
+  }
+  .rail-head .count { color: var(--paper-faint); font-size: 11px; }
+
+  /* ---------- run index (left) ---------- */
+  .runlist { padding: 2px 10px 20px; }
+  .run {
+    display: block; padding: 12px 12px; border-radius: var(--r-sm);
+    border: 1px solid transparent; margin-bottom: 3px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .run:hover { background: var(--ink-2); border-color: var(--line); }
+  .run.active { background: var(--ink-3); border-color: var(--line-strong); }
+  .run.active .run-id { color: var(--brass-2); }
+  .run-top { display: flex; align-items: center; gap: 8px; }
+  .run-id { font-size: 12.5px; color: var(--paper); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .run-meta { margin-top: 6px; display: flex; gap: 12px; color: var(--paper-faint); font-size: 10.5px; }
+  .run-meta b { color: var(--paper-dim); font-weight: 500; }
+
+  /* status pip + label */
+  .pip { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .pip.running      { background: var(--signal); box-shadow: 0 0 8px var(--signal); animation: pulse 1.8s infinite; }
+  .pip.idle         { background: var(--ok); }
+  .pip.awaiting     { background: var(--warn); animation: blink 1.4s steps(1) infinite; }
+  .pip.completed    { background: var(--slate); }
+  .pip.error        { background: var(--bad); }
+  .pip.cancelled    { background: var(--slate); opacity: 0.7; }
+  .status {
+    font-size: 9.5px; letter-spacing: 0.7px; text-transform: uppercase;
+    color: var(--paper-faint);
+  }
+
+  /* ---------- center: the performance ---------- */
+  .stage { padding: 20px 30px 60px; max-width: 940px; }
+  .stage-head { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 4px; }
+  .stage-title {
+    font-family: var(--serif); font-weight: 400; font-size: 34px; line-height: 1.05;
+    color: var(--paper); margin: 0;
+  }
+  .stage-sub { color: var(--paper-faint); font-size: 11.5px; margin-top: 7px; letter-spacing: 0.3px; }
+  .stage-sub .dot { color: var(--line-strong); margin: 0 8px; }
+
+  /* HITL controls */
+  .controls { margin-left: auto; display: flex; gap: 8px; flex: none; padding-top: 6px; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px;
+    color: var(--paper-dim); background: var(--ink-3);
+    border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+    padding: 7px 13px; cursor: pointer; transition: all 0.15s ease;
+    text-transform: uppercase;
+  }
+  .btn:hover { color: var(--paper); border-color: var(--paper-faint); background: var(--ink-4); }
+  .btn.primary { color: #1a1407; background: var(--brass); border-color: var(--brass); font-weight: 600; }
+  .btn.primary:hover { background: var(--brass-2); }
+  .btn.danger:hover { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
+  .btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+  /* transcript */
+  .transcript { margin-top: 26px; border-left: 1px solid var(--line); padding-left: 0; }
+  .entry { position: relative; padding: 0 0 22px 26px; margin-left: 8px; }
+  .entry::before {
+    content: ""; position: absolute; left: -5px; top: 6px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--ink); border: 2px solid var(--slate);
+  }
+  .entry.agent::before { border-color: var(--agent, var(--brass)); }
+  .entry.user::before  { border-color: var(--paper-dim); background: var(--paper-dim); }
+  .entry.system::before{ border-color: var(--slate); background: transparent; }
+  .entry-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+  .who {
+    font-family: var(--serif); font-style: italic; font-size: 17px;
+    color: var(--agent, var(--paper));
+  }
+  .entry.user .who, .entry.system .who { color: var(--paper-dim); font-style: italic; }
+  .turn-tag { font-size: 10px; color: var(--paper-faint); letter-spacing: 0.5px; }
+  .tok { font-size: 10px; color: var(--paper-faint); margin-left: auto; }
+  .body-text { color: var(--paper); font-size: 12.5px; line-height: 1.72; white-space: pre-wrap; }
+  .entry.system .body-text { color: var(--paper-dim); font-style: italic; }
+
+  /* streaming caret on the in-flight entry */
+  .streaming .body-text::after {
+    content: "▍"; color: var(--signal); margin-left: 2px;
+    animation: caret 1s steps(1) infinite; font-style: normal;
+  }
+  .streaming .who::after {
+    content: "now playing"; font-family: var(--mono); font-style: normal;
+    font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--signal); margin-left: 12px; vertical-align: middle;
+    padding: 2px 7px; border: 1px solid var(--signal-soft); border-radius: 20px;
+    background: var(--signal-soft);
+  }
+
+  /* a guardrail/system inline note */
+  .note {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 10.5px; padding: 3px 9px; border-radius: 6px; margin-top: 3px;
+  }
+  .note.transform { color: var(--signal); background: var(--signal-soft); }
+  .note.block { color: var(--bad); background: var(--bad-soft); }
+
+  /* tool call block */
+  .tool {
+    margin-top: 9px; border: 1px solid var(--line); border-radius: var(--r-sm);
+    background: var(--ink-2); overflow: hidden;
+  }
+  .tool-head {
+    display: flex; align-items: center; gap: 9px; padding: 8px 12px;
+    font-size: 11px; color: var(--paper-dim); border-bottom: 1px solid var(--line);
+  }
+  .tool-head .glyph { color: var(--brass); }
+  .tool-head .ok { margin-left: auto; color: var(--ok); font-size: 10px; letter-spacing: 0.5px; }
+  .tool-body { padding: 9px 12px; font-size: 11.5px; color: var(--paper-dim); white-space: pre-wrap; }
+  .tool-body .k { color: var(--paper-faint); }
+
+  /* ---------- right rail: the instruments ---------- */
+  .panel { border-top: 1px solid var(--line); padding: 16px 18px; }
+  .panel:first-child { border-top: none; }
+  .panel h3 {
+    margin: 0 0 13px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--paper-faint); font-weight: 500;
+  }
+
+  /* budget gauge */
+  .gauge { margin-bottom: 13px; }
+  .gauge-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--paper-dim); margin-bottom: 5px; }
+  .gauge-row .v { color: var(--paper); }
+  .bar { height: 6px; border-radius: 4px; background: var(--ink-4); overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--brass), var(--brass-2)); }
+  .bar.hot > span { background: linear-gradient(90deg, var(--warn), var(--bad)); }
+
+  /* metric grid */
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .metric .label { font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--paper-faint); }
+  .metric .value { font-size: 19px; color: var(--paper); margin-top: 2px; }
+  .metric .value .u { font-size: 11px; color: var(--paper-faint); }
+
+  /* timeline (the score) */
+  .score { display: flex; flex-direction: column; gap: 0; }
+  .beat { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .beat:last-child { border-bottom: none; }
+  .beat .t { font-size: 10px; color: var(--paper-faint); padding-top: 2px; }
+  .beat .who2 { font-size: 11.5px; color: var(--paper); }
+  .beat .who2 .seg { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 7px; vertical-align: middle; }
+  .beat .sub { font-size: 10px; color: var(--paper-faint); margin-top: 1px; }
+  .beat.live .who2 { color: var(--signal); }
+
+  /* process tree */
+  .tree { font-size: 11px; color: var(--paper-dim); line-height: 1.85; }
+  .tree .node { white-space: pre; }
+  .tree .sup { color: var(--paper-faint); }
+  .tree .alive { color: var(--ok); }
+  .tree .work { color: var(--signal); }
+  .tree .pid { color: var(--paper-faint); }
+
+  /* audit log */
+  .audit { font-size: 10.5px; line-height: 1.5; }
+  .audit .ev { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .audit .ev:last-child { border-bottom: none; }
+  .audit .ev .at { color: var(--paper-faint); flex: none; }
+  .audit .ev .ty { color: var(--brass); }
+  .audit .ev .by { color: var(--paper-faint); margin-left: auto; }
+
+  .privacy {
+    margin: 0 18px 22px; padding: 11px 13px; border: 1px solid var(--line);
+    border-radius: var(--r-sm); background: var(--ink-2);
+    font-size: 10px; color: var(--paper-faint); line-height: 1.6;
+  }
+  .privacy b { color: var(--paper-dim); font-weight: 500; }
+  .privacy .lock { color: var(--ok); }
+
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(98,205,205,0.45); }
+    70%  { box-shadow: 0 0 0 7px rgba(98,205,205,0); }
+    100% { box-shadow: 0 0 0 0 rgba(98,205,205,0); }
+  }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .footer {
+    border-top: 1px solid var(--line); padding: 12px 26px;
+    color: var(--paper-faint); font-size: 10.5px;
+    display: flex; gap: 16px; align-items: center;
+  }
+  .footer .lock { color: var(--ok); }
+  .footer .spacer { flex: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <span class="wordmark"><span class="g-mark">楽団</span> gakudan</span>
+    <span class="tagline">liveboard &mdash; the conductor's stand</span>
+    <span class="spacer"></span>
+    <span class="clock"><span class="live-dot"></span> live &middot; 4 active &middot; node alpha-1</span>
+  </header>
+
+  <div class="console">
+
+    <!-- ============ LEFT: the season's program ============ -->
+    <aside class="col rail-left">
+      <div class="rail-head"><h2>Runs</h2><span class="count">12 total &middot; 4 live</span></div>
+      <div class="runlist">
+
+        <a class="run active">
+          <div class="run-top"><span class="pip running"></span><span class="run-id">run-7f3a9c &middot; debate</span></div>
+          <div class="run-meta"><span><b>3</b> agents</span><span><b>5</b> turns</span><span class="status">running</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip running"></span><span class="run-id">run-22b8e1 &middot; planner+coder</span></div>
+          <div class="run-meta"><span><b>2</b> agents</span><span><b>3</b> turns</span><span class="status">running</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip awaiting"></span><span class="run-id">run-91de04 &middot; triage</span></div>
+          <div class="run-meta"><span>team-payments</span><span><b>8</b> turns</span><span class="status">awaiting human</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip running"></span><span class="run-id">run-0ac551 &middot; research</span></div>
+          <div class="run-meta"><span>fanout &times;4</span><span><b>12</b> turns</span><span class="status">running</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip completed"></span><span class="run-id">run-5e7740 &middot; debate</span></div>
+          <div class="run-meta"><span><b>3</b> agents</span><span>14.2k tok</span><span class="status">completed</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip cancelled"></span><span class="run-id">run-3b1f88 &middot; planner+coder</span></div>
+          <div class="run-meta"><span>budget</span><span>100k tok</span><span class="status">cancelled</span></div>
+        </a>
+
+        <a class="run">
+          <div class="run-top"><span class="pip error"></span><span class="run-id">run-citing &middot; triage</span></div>
+          <div class="run-meta"><span>tool error</span><span><b>4</b> turns</span><span class="status">error</span></div>
+        </a>
+
+      </div>
+    </aside>
+
+    <!-- ============ CENTER: the performance ============ -->
+    <main class="col">
+      <div class="stage">
+
+        <div class="stage-head">
+          <div>
+            <h1 class="stage-title">A debate, in five turns</h1>
+            <div class="stage-sub">
+              <span class="mono">run-7f3a9c</span>
+              <span class="dot">/</span> actor <b>u_182</b> &middot; team-research
+              <span class="dot">/</span> router <b>debate_router</b>
+              <span class="dot">/</span> claude-sonnet-4-6
+            </div>
+          </div>
+          <div class="controls">
+            <button class="btn">Interrupt</button>
+            <button class="btn" disabled>Resume</button>
+            <button class="btn danger">Cancel</button>
+          </div>
+        </div>
+
+        <div class="transcript">
+
+          <div class="entry user">
+            <div class="entry-head"><span class="who">operator</span><span class="turn-tag">input</span></div>
+            <div class="body-text">Should gakudan eval cases support JSON in v0.2?</div>
+          </div>
+
+          <div class="entry agent" style="--agent:#d8a84b">
+            <div class="entry-head"><span class="who">proponent</span><span class="turn-tag">turn 1</span><span class="tok">412 / 188 tok</span></div>
+            <div class="body-text">FOR: JSON cases let non-Erlang teams author evals. A Python team can dump replay logs as JSON without ever touching rebar3.</div>
+          </div>
+
+          <div class="entry agent" style="--agent:#62cdcd">
+            <div class="entry-head"><span class="who">opponent</span><span class="turn-tag">turn 2</span><span class="tok">398 / 203 tok</span></div>
+            <div class="body-text">AGAINST: JSON loses Erlang's pattern-match expressiveness in expectations. You re-invent a poor cousin of term syntax.</div>
+          </div>
+
+          <div class="entry agent" style="--agent:#d8a84b">
+            <div class="entry-head"><span class="who">proponent</span><span class="turn-tag">turn 3</span><span class="tok">421 / 176 tok</span></div>
+            <div class="body-text">FOR (continued): a JSON schema is testable independently of any BEAM toolchain. Doc-as-test becomes a thing for free.</div>
+            <span class="note transform">guardrail &middot; pii_redactor transformed output</span>
+          </div>
+
+          <div class="entry agent" style="--agent:#62cdcd">
+            <div class="entry-head"><span class="who">opponent</span><span class="turn-tag">turn 4</span><span class="tok">405 / 211 tok</span></div>
+            <div class="body-text">AGAINST (continued): tooling cost is real - JSON parsing, schema validation, version migration. Maintenance debt the project has not earned.</div>
+            <div class="tool">
+              <div class="tool-head"><span class="glyph">&#9638;</span> search_prior_art <span class="ok">ok &middot; 1.2s</span></div>
+              <div class="tool-body"><span class="k">query:</span> "json eval schema versioning"  <span class="k">&rarr;</span> 3 results</div>
+            </div>
+          </div>
+
+          <div class="entry agent streaming" style="--agent:#f0c971">
+            <div class="entry-head"><span class="who">synthesiser</span><span class="turn-tag">turn 5</span><span class="tok">388 / &hellip;</span></div>
+            <div class="body-text">Crux: who authors the eval cases? If only BEAM devs, stay with Erlang terms. If non-BEAM contributors are expected, JSON earns its keep. Recommendation: hold JSON until a real non-BEAM contributor</div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+    <!-- ============ RIGHT: the instruments ============ -->
+    <aside class="col rail-right">
+
+      <div class="panel">
+        <h3>Budget</h3>
+        <div class="gauge">
+          <div class="gauge-row"><span>tokens</span><span class="v">3,402 / 50,000</span></div>
+          <div class="bar"><span style="width:7%"></span></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-row"><span>llm calls</span><span class="v">5 / 40</span></div>
+          <div class="bar"><span style="width:13%"></span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>This run</h3>
+        <div class="metrics">
+          <div class="metric"><div class="label">tokens in</div><div class="value">2,036</div></div>
+          <div class="metric"><div class="label">tokens out</div><div class="value">978</div></div>
+          <div class="metric"><div class="label">turns</div><div class="value">5</div></div>
+          <div class="metric"><div class="label">elapsed</div><div class="value">14<span class="u">s</span></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Score &middot; turns</h3>
+        <div class="score">
+          <div class="beat"><span class="t">+0.0s</span><div><div class="who2"><span class="seg" style="background:#d8a84b"></span>proponent</div><div class="sub">end_turn &middot; 600 tok</div></div></div>
+          <div class="beat"><span class="t">+2.9s</span><div><div class="who2"><span class="seg" style="background:#62cdcd"></span>opponent</div><div class="sub">end_turn &middot; 601 tok</div></div></div>
+          <div class="beat"><span class="t">+5.8s</span><div><div class="who2"><span class="seg" style="background:#d8a84b"></span>proponent</div><div class="sub">transform &middot; 597 tok</div></div></div>
+          <div class="beat"><span class="t">+9.1s</span><div><div class="who2"><span class="seg" style="background:#62cdcd"></span>opponent</div><div class="sub">tool_use &middot; 616 tok</div></div></div>
+          <div class="beat live"><span class="t">+12.4s</span><div><div class="who2"><span class="seg" style="background:#f0c971"></span>synthesiser</div><div class="sub">streaming&hellip;</div></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Processes</h3>
+        <div class="tree">
+<div class="node"><span class="sup">run_sup</span> <span class="pid">&lt;0.812.0&gt;</span></div>
+<div class="node"> &#9500;&#9472; <span class="alive">blackboard</span> <span class="pid">&lt;0.813.0&gt;</span></div>
+<div class="node"> &#9500;&#9472; <span class="alive">stream</span> <span class="pid">&lt;0.814.0&gt;</span></div>
+<div class="node"> &#9492;&#9472; <span class="alive">run_statem</span> <span class="pid">&lt;0.815.0&gt;</span> <span class="sup">running</span></div>
+<div class="node">    &#9492;&#9472; <span class="work">turn_worker</span> <span class="pid">&lt;0.842.0&gt;</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Audit</h3>
+        <div class="audit">
+          <div class="ev"><span class="at">14:02:01</span><span class="ty">run_started</span><span class="by">u_182</span></div>
+          <div class="ev"><span class="at">14:02:07</span><span class="ty">guardrail_transform</span><span class="by">pii_redactor</span></div>
+          <div class="ev"><span class="at">14:02:11</span><span class="ty">guardrail_allow</span><span class="by">content_policy</span></div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <div class="privacy">
+    <span class="lock">&#128274;</span> <b>Self-hosted.</b> Fonts, CSS and JS are bundled and served same-origin.
+    No CDN, no trackers, no off-origin requests. Transcripts render redacted by default;
+    revealing raw content is a permissioned, audited action. Data lives in gakudan, deletable on request.
+  </div>
+
+  <footer class="footer">
+    <span class="lock">&#128274;</span> <span>0 off-origin requests</span>
+    <span class="spacer"></span>
+    <span>gakudan_liveboard &middot; Nova + Arizona &middot; reads registry / blackboard / telemetry / audit</span>
+  </footer>
+
+</div>
+</body>
+</html>
