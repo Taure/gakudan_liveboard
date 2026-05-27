@@ -14,6 +14,7 @@ routes(_Environment) ->
             routes => [
                 {"/", fun gakudan_liveboard_page_controller:index/1, #{methods => [get]}},
                 {"/runs/:run_id", fun gakudan_liveboard_page_controller:show/1, #{methods => [get]}},
+                {"/sse/runs", fun gakudan_liveboard_sse:stream_index/1, #{methods => [get]}},
                 {"/sse/runs/:run_id", fun gakudan_liveboard_sse:stream/1, #{methods => [get]}},
                 {"/runs/:run_id/interrupt", fun gakudan_liveboard_action_controller:interrupt/1, #{
                     methods => [post]
