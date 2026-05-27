@@ -144,6 +144,8 @@ a { color: inherit; text-decoration: none; }
 .btn.primary:hover { background: var(--brass-2); }
 .btn.danger:hover { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
 .btn:disabled { opacity: .32; cursor: not-allowed; }
+.toast { font-size: 10.5px; letter-spacing: .4px; color: var(--signal); align-self: center; padding-left: 4px; }
+.toast:not(:empty) { animation: blink 1.6s ease 2; }
 
 /* ---- transcript ---- */
 .transcript { margin-top: 26px; border-left: 1px solid var(--line); }

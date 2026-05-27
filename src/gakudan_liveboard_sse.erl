@@ -31,7 +31,7 @@ register() ->
 stream(Req) ->
     RunId = maps:get(~"run_id", maps:get(bindings, Req, #{}), ~""),
     case gakudan_run:blackboard(RunId) of
-        {ok, BB} -> {stream, 200, headers(), {run_transcript, BB}};
+        {ok, BB} -> {stream, 200, headers(), {run, RunId, BB}};
         {error, not_found} -> {status, 404, #{}, ~"run not found"}
     end.
 
@@ -40,26 +40,51 @@ handle_stream({stream, Code, Headers, Source}, _Callback, Req0) ->
     Req = cowboy_req:stream_reply(Code, Headers, Req0),
     serve(Source, Req).
 
-serve({run_transcript, BB}, Req) ->
+serve({run, RunId, BB}, Req) ->
     {ok, _Ref} = gakudan_blackboard:subscribe(BB),
-    Initial = datastar:patch_elements(
-        transcript_html(gakudan_blackboard:entries(BB)),
-        #{selector => ?TRANSCRIPT, mode => inner}
+    ok = gakudan_liveboard_stats:subscribe(RunId),
+    send(
+        Req,
+        datastar:patch_elements(
+            transcript_html(gakudan_blackboard:entries(BB)), #{
+                selector => ?TRANSCRIPT, mode => inner
+            }
+        )
     ),
-    ok = cowboy_req:stream_body(Initial, nofin, Req),
-    loop(Req).
+    send(Req, rail_frame(RunId)),
+    loop(RunId, Req).
 
-loop(Req) ->
+loop(RunId, Req) ->
     receive
         {gakudan_blackboard, _RunId, {entry_added, Entry}} ->
-            Frame = datastar:patch_elements(
-                entry_html(Entry), #{selector => ?TRANSCRIPT, mode => append}
+            send(
+                Req,
+                datastar:patch_elements(
+                    entry_html(Entry), #{selector => ?TRANSCRIPT, mode => append}
+                )
             ),
-            ok = cowboy_req:stream_body(Frame, nofin, Req),
-            loop(Req);
+            loop(RunId, Req);
+        {gakudan_liveboard_stats, RunId, _Stats} ->
+            send(Req, rail_frame(RunId)),
+            loop(RunId, Req);
         _Other ->
-            loop(Req)
+            loop(RunId, Req)
     end.
+
+send(Req, Frame) ->
+    ok = cowboy_req:stream_body(Frame, nofin, Req).
+
+rail_frame(RunId) ->
+    Stats = gakudan_liveboard_stats:get(RunId),
+    RunSup =
+        case gakudan_registry:lookup(RunId) of
+            {ok, #{run_sup := Sup}} -> Sup;
+            _ -> undefined
+        end,
+    datastar:patch_elements(
+        gakudan_liveboard_page_controller:rail_html(Stats, RunSup),
+        #{selector => ~"#rail", mode => inner}
+    ).
 
 headers() ->
     maps:from_list(datastar:sse_headers()).

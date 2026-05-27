@@ -7,9 +7,9 @@
     {applications, [
         kernel,
         stdlib,
+        telemetry,
         nova,
         datastar,
-        datastar_nova,
         gakudan
     ]},
     {env, []},
