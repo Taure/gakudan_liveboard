@@ -1,12 +1,12 @@
 -module(gakudan_liveboard_page_controller).
 -moduledoc """
 Nova controllers for the liveboard pages. Server-render the conductor's-console
-shell (HTML + the self-hosted CSS/fonts); the live transcript is filled by the
-SSE handler over Datastar (`data-on-load` opens the stream), and the instrument
-rail is rendered from `gakudan_liveboard_stats` + the run's supervision tree.
+shell (HTML + the self-hosted CSS/fonts); the live transcript and run index are
+filled by the SSE handler over Datastar (`data-init` opens the streams), and the
+instrument rail is rendered from `gakudan_liveboard_stats` + the run's tree.
 """.
 
--export([index/1, show/1, rail_html/2]).
+-export([index/1, show/1, rail_html/2, run_index_html/2]).
 
 index(_Req) ->
     Runs = gakudan_registry:all(),
@@ -58,8 +58,25 @@ console(Left, Center, Right) ->
         ~"</aside></div>"
     ].
 
+%% Page-load left column: a stable element that opens the index SSE stream,
+%% wrapped around the live-patched #run-index. The stream re-renders #run-index
+%% on every run start/stop/cancel, so new runs appear without a refresh. The
+%% open run (Active) is carried via ?active so its highlight survives patches.
 runlist_html(Runs, Active) ->
     [
+        ~"<div data-init=\"@get('",
+        index_stream_url(Active),
+        ~"')\">",
+        run_index_html(Runs, Active),
+        ~"</div>"
+    ].
+
+index_stream_url(undefined) -> ~"/sse/runs";
+index_stream_url(Active) -> [~"/sse/runs?active=", Active].
+
+run_index_html(Runs, Active) ->
+    [
+        ~"<div id=\"run-index\">",
         ~"<div class=\"rail-head\"><h2>Runs</h2><span class=\"count\">",
         integer_to_binary(length(Runs)),
         ~"</span></div><div class=\"runlist\">",
@@ -67,7 +84,7 @@ runlist_html(Runs, Active) ->
             [] -> ~"<p class=\"empty\">no active runs</p>";
             _ -> [run_link(R, Active) || R <- Runs]
         end,
-        ~"</div>"
+        ~"</div></div>"
     ].
 
 run_link({RunId, _Entry}, Active) ->

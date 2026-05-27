@@ -15,7 +15,7 @@ never runs. On client disconnect Cowboy terminates the request process and
 separate Cowboy listener, no Nova change - see novaframework/nova#387.
 """.
 
--export([register/0, stream/1, handle_stream/3]).
+-export([register/0, stream/1, stream_index/1, handle_stream/3]).
 
 -define(TRANSCRIPT, ~"#transcript").
 
@@ -35,6 +35,12 @@ stream(Req) ->
         {error, not_found} -> {status, 404, #{}, ~"run not found"}
     end.
 
+%% Nova controller: GET /sse/runs - the live run index (left column). `active`
+%% (optional query) is the open run, kept highlighted across patches.
+stream_index(Req) ->
+    Active = proplists:get_value(~"active", cowboy_req:parse_qs(Req), undefined),
+    {stream, 200, headers(), {runs_index, Active}}.
+
 %% Registered Nova handler. Holds the connection; never returns.
 handle_stream({stream, Code, Headers, Source}, _Callback, Req0) ->
     Req = cowboy_req:stream_reply(Code, Headers, Req0),
@@ -52,7 +58,11 @@ serve({run, RunId, BB}, Req) ->
         )
     ),
     send(Req, rail_frame(RunId)),
-    loop(RunId, Req).
+    loop(RunId, Req);
+serve({runs_index, Active}, Req) ->
+    ok = gakudan_liveboard_stats:subscribe_index(),
+    send(Req, index_frame(Active)),
+    loop_index(Active, Req).
 
 loop(RunId, Req) ->
     receive
@@ -70,6 +80,20 @@ loop(RunId, Req) ->
         _Other ->
             loop(RunId, Req)
     end.
+
+loop_index(Active, Req) ->
+    receive
+        {gakudan_liveboard_index, _RunId} ->
+            send(Req, index_frame(Active)),
+            loop_index(Active, Req);
+        _Other ->
+            loop_index(Active, Req)
+    end.
+
+index_frame(Active) ->
+    datastar:patch_elements(
+        gakudan_liveboard_page_controller:run_index_html(gakudan_registry:all(), Active)
+    ).
 
 send(Req, Frame) ->
     ok = cowboy_req:stream_body(Frame, nofin, Req).

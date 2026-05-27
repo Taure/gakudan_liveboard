@@ -12,7 +12,7 @@ patches live.
 -behaviour(gen_server).
 -compile({no_auto_import, [get/1]}).
 
--export([start_link/0, get/1, subscribe/1]).
+-export([start_link/0, get/1, subscribe/1, subscribe_index/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 -export([handle_event/4]).
 
@@ -34,6 +34,13 @@ get(RunId) ->
 -spec subscribe(gakudan:run_id()) -> ok.
 subscribe(RunId) ->
     gen_server:call(?MODULE, {subscribe, RunId, self()}).
+
+%% Subscribe the caller to run-index changes (a run started/stopped/cancelled),
+%% so the left column can re-render live. Delivers `{gakudan_liveboard_index,
+%% RunId}` messages.
+-spec subscribe_index() -> ok.
+subscribe_index() ->
+    gen_server:call(?MODULE, {subscribe_index, self()}).
 
 empty() ->
     #{
@@ -61,7 +68,7 @@ init([]) ->
         [gakudan, budget, exceeded]
     ],
     ok = telemetry:attach_many(?MODULE, Events, fun ?MODULE:handle_event/4, undefined),
-    {ok, #{subs => #{}}}.
+    {ok, #{subs => #{}, index_subs => []}}.
 
 %% Telemetry callback (runs in the emitting process; just forward).
 handle_event(Event, Measurements, Meta, _Config) ->
@@ -70,7 +77,10 @@ handle_event(Event, Measurements, Meta, _Config) ->
 handle_call({subscribe, RunId, Pid}, _From, #{subs := Subs} = State) ->
     _ = erlang:monitor(process, Pid),
     Pids = maps:get(RunId, Subs, []),
-    {reply, ok, State#{subs => Subs#{RunId => [Pid | Pids]}}}.
+    {reply, ok, State#{subs => Subs#{RunId => [Pid | Pids]}}};
+handle_call({subscribe_index, Pid}, _From, #{index_subs := IndexSubs} = State) ->
+    _ = erlang:monitor(process, Pid),
+    {reply, ok, State#{index_subs => [Pid | IndexSubs]}}.
 
 handle_cast({event, Event, Measurements, Meta}, State) ->
     case maps:get(run_id, Meta, undefined) of
@@ -80,12 +90,15 @@ handle_cast({event, Event, Measurements, Meta}, State) ->
             Stats = update(Event, Measurements, Meta, get(RunId)),
             ets:insert(?TAB, {RunId, Stats}),
             notify(RunId, Stats, State),
+            maybe_notify_index(Event, RunId, State),
             {noreply, State}
     end.
 
-handle_info({'DOWN', _Ref, process, Pid, _Reason}, #{subs := Subs} = State) ->
+handle_info(
+    {'DOWN', _Ref, process, Pid, _Reason}, #{subs := Subs, index_subs := IndexSubs} = State
+) ->
     Subs1 = maps:map(fun(_RunId, Pids) -> lists:delete(Pid, Pids) end, Subs),
-    {noreply, State#{subs => Subs1}};
+    {noreply, State#{subs => Subs1, index_subs => lists:delete(Pid, IndexSubs)}};
 handle_info(_Msg, State) ->
     {noreply, State}.
 
@@ -96,6 +109,19 @@ terminate(_Reason, _State) ->
 notify(RunId, Stats, #{subs := Subs}) ->
     Msg = {gakudan_liveboard_stats, RunId, Stats},
     lists:foreach(fun(Pid) -> Pid ! Msg end, maps:get(RunId, Subs, [])).
+
+%% A run appeared or changed lifecycle state -> the left column needs a
+%% re-render (new entry, or a status pip flip).
+maybe_notify_index(Event, RunId, #{index_subs := IndexSubs}) when
+    Event =:= [gakudan, run, start];
+    Event =:= [gakudan, run, stop];
+    Event =:= [gakudan, run, cancelled];
+    Event =:= [gakudan, budget, exceeded]
+->
+    Msg = {gakudan_liveboard_index, RunId},
+    lists:foreach(fun(Pid) -> Pid ! Msg end, IndexSubs);
+maybe_notify_index(_Event, _RunId, _State) ->
+    ok.
 
 update([gakudan, run, start], _M, Meta, S) ->
     S#{
