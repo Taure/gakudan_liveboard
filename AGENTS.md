@@ -14,6 +14,9 @@ https://github.com/Taure):
   + CI gate.
 - **[madoguchi](https://github.com/Taure/madoguchi)** - MCP *server* framework.
 - **[sekisho](https://github.com/Taure/sekisho)** - LLM gateway / control plane.
+- **[bunko](https://github.com/Taure/bunko)** - agent memory + RAG (pgvector).
+- **[banto](https://github.com/Taure/banto)** - multi-agent repo concierge; the
+  showcase consumer wiring the pillars together.
 
 Other gakudan sisters: gakudan_metrics, gakudan_otel, gakudan_tickets
 (+ gakudan_tickets_github).
