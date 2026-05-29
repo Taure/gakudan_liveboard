@@ -1,6 +1,6 @@
 # gakudan_liveboard - design & research
 
-Status: design (2026-05-27). The scaffold boots a Nova + Arizona app with a run
+Status: design (2026-05-27). The app is a Nova + Datastar dashboard with a run
 list and a live transcript; this document defines what it should become.
 
 ## 1. Positioning: a live ops console, not a trace explorer
@@ -61,10 +61,10 @@ Sources: [LangSmith](https://www.langchain.com/langsmith/observability),
 gakudan_liveboard wins on the four things the Python dashboards structurally
 cannot do as well:
 
-1. **It is live.** Arizona is a server-rendered LiveView equivalent on the BEAM.
-   The board pushes diffs over a WebSocket as the blackboard is appended and
-   tokens stream, with no polling and no client framework. Watching a run is the
-   product, not a replay of one.
+1. **It is live.** The board is server-rendered on the BEAM and streams diffs
+   over SSE (Datastar) as the blackboard is appended and tokens stream, with no
+   polling and no client framework. Watching a run is the product, not a replay
+   of one.
 2. **The supervision tree *is* the agent graph.** Every other tool reconstructs
    a graph from emitted spans. gakudan has a *real* OTP process tree per run -
    so the board can show live process state, crashes, restarts, and supervised
@@ -175,30 +175,26 @@ reads as a *program*, not a terminal.
 
 A static, fully self-hosted prototype of this language lives at
 `docs/prototype/index.html` (run index + run detail) - it is the visual spec the
-Arizona views are ported from, and it makes zero off-origin requests.
+Nova + Datastar pages are ported from, and it makes zero off-origin requests.
 
 ## 7. Architecture
 
-Nova for routing/auth/static, Arizona for the live views.
+Nova for routing/auth/static, Datastar (SSE) for the live updates.
 
 - **Data sources (all existing):** `gakudan_registry` for the run list; the per
   run `gakudan_blackboard` pub/sub (`{gakudan_blackboard, RunId, {entry_added,
   _}}`) for the transcript; `gakudan_stream` subscription for token deltas;
   the gakudan `:telemetry` surface for turn/llm/tool/router/budget events; the
   audit sink for the audit trail; `gakudan:interrupt/resume/cancel` for HITL.
-- **Views:** `home_view` (index), `run_view` (detail). Each is an
-  `arizona_view`; mount subscribes to the relevant pub/sub and `handle_info/2`
-  pushes diffs.
-- **Known blocker (from scaffold):** an upstream API mismatch -
-  `arizona_nova` calls `arizona_pubsub:set_scope/1`, removed in current
-  `arizona`. Needs a one-line upstream fix before the app boots. Tracked in
-  `CLAUDE.md`.
+- **Pages and stream:** `gakudan_liveboard_page_controller` server-renders the
+  index and run-detail pages; `gakudan_liveboard_sse` registers a `{stream, ...}`
+  Nova return-handler that subscribes to the relevant pub/sub and pushes
+  `datastar:patch_elements` frames over SSE.
 
 ## 8. Next steps
 
-1. Land the upstream `arizona_nova` fix so the app boots.
-2. Port the prototype's CSS + structure into the layout and the two views.
-3. Wire the right-rail instruments to telemetry + audit (read-only first).
-4. Wire the HITL buttons to `gakudan:interrupt/resume/cancel`.
-5. Add the CSP header + the `fetch-fonts.sh` build step to CI.
-6. Then: process/supervision view, redaction reveal, eval-case export.
+1. Port the prototype's CSS + structure into the layout and the two pages.
+2. Wire the right-rail instruments to telemetry + audit (read-only first).
+3. Wire the HITL buttons to `gakudan:interrupt/resume/cancel`.
+4. Add the CSP header + the `fetch-fonts.sh` build step to CI.
+5. Then: process/supervision view, redaction reveal, eval-case export.
