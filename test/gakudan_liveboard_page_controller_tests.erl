@@ -7,7 +7,9 @@ run_id_in_urls_test_() ->
         fun a_plain_run_id_is_written_as_it_is/0,
         fun a_run_id_from_the_path_cannot_end_an_expression/0,
         fun a_run_id_from_the_path_cannot_end_an_attribute/0,
-        fun a_listed_run_id_cannot_end_its_link/0
+        fun a_listed_run_id_cannot_end_its_link/0,
+        fun a_run_id_that_is_not_text_is_still_shown/0,
+        fun every_byte_is_written_as_a_url_writes_it/0
     ]}.
 
 setup() ->
@@ -64,6 +66,26 @@ a_listed_run_id_cannot_end_its_link() ->
     Page = iolist_to_binary(Body),
     ?assertMatch({_, _}, binary:match(Page, ~"href=\"/runs/a%27b%22c%20d\"")),
     ?assertMatch({_, _}, binary:match(Page, ~"<span class=\"run-id\">a'b&quot;c d</span>")).
+
+a_run_id_that_is_not_text_is_still_shown() ->
+    RunId = <<"a", 255, "b">>,
+    true = ets:insert(gakudan_registry, {RunId, #{}}),
+    {status, 200, _Headers, Body} = gakudan_liveboard_page_controller:index(#{}),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(Body), ~"href=\"/runs/a%FFb\"")),
+    ?assertMatch({_, _}, binary:match(show(RunId), ~"data-init=\"@get('/sse/runs/a%FFb')\"")).
+
+every_byte_is_written_as_a_url_writes_it() ->
+    [
+        ?assertMatch(
+            {_, _},
+            binary:match(
+                show(<<"x", Byte>>),
+                <<"@get('/sse/runs/", (iolist_to_binary(uri_string:quote(<<"x", Byte>>)))/binary,
+                    "')">>
+            )
+        )
+     || Byte <- lists:seq(0, 127)
+    ].
 
 show(RunId) ->
     {status, 200, _Headers, Body} =

@@ -215,7 +215,20 @@ run_sup(RunId) ->
     end.
 
 url_part(RunId) ->
-    uri_string:quote(RunId).
+    <<<<(url_byte(Byte))/binary>> || <<Byte>> <= RunId>>.
+
+url_byte(Byte) when
+    Byte >= $a, Byte =< $z;
+    Byte >= $A, Byte =< $Z;
+    Byte >= $0, Byte =< $9;
+    Byte =:= $-;
+    Byte =:= $.;
+    Byte =:= $_;
+    Byte =:= $~
+->
+    <<Byte>>;
+url_byte(Byte) ->
+    <<$%, (binary:encode_hex(<<Byte>>))/binary>>.
 
 status_pip(running) -> {~"running", ~"running"};
 status_pip(completed) -> {~"completed", ~"completed"};
