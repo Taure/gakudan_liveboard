@@ -34,7 +34,7 @@ show(Req) ->
         %% the long-lived SSE stream, and the handler patches #transcript (and
         %% the rail) as entries/telemetry arrive.
         ~"<div data-init=\"@get('/sse/runs/",
-        RunId,
+        url_part(RunId),
         ~"')\"><div id=\"transcript\" class=\"transcript\">",
         ~"<p class=\"empty\">connecting...</p></div></div></div>"
     ],
@@ -72,7 +72,7 @@ runlist_html(Runs, Active) ->
     ].
 
 index_stream_url(undefined) -> ~"/sse/runs";
-index_stream_url(Active) -> [~"/sse/runs?active=", Active].
+index_stream_url(Active) -> [~"/sse/runs?active=", url_part(Active)].
 
 run_index_html(Runs, Active) ->
     [
@@ -98,7 +98,7 @@ run_link({RunId, _Entry}, Active) ->
         ~"<a class=\"",
         Cls,
         ~"\" href=\"/runs/",
-        RunId,
+        url_part(RunId),
         ~"\"><div class=\"run-top\"><span class=\"pip ",
         Pip,
         ~"\"></span><span class=\"run-id\">",
@@ -198,7 +198,7 @@ hitl_button(RunId, Action, Cls, Label) ->
         ~"<button class=\"",
         Cls,
         ~"\" data-on-click=\"@post('/runs/",
-        RunId,
+        url_part(RunId),
         ~"/",
         Action,
         ~"')\">",
@@ -213,6 +213,22 @@ run_sup(RunId) ->
         {ok, #{run_sup := Sup}} -> Sup;
         _ -> undefined
     end.
+
+url_part(RunId) ->
+    <<<<(url_byte(Byte))/binary>> || <<Byte>> <= RunId>>.
+
+url_byte(Byte) when
+    Byte >= $a, Byte =< $z;
+    Byte >= $A, Byte =< $Z;
+    Byte >= $0, Byte =< $9;
+    Byte =:= $-;
+    Byte =:= $.;
+    Byte =:= $_;
+    Byte =:= $~
+->
+    <<Byte>>;
+url_byte(Byte) ->
+    <<$%, (binary:encode_hex(<<Byte>>))/binary>>.
 
 status_pip(running) -> {~"running", ~"running"};
 status_pip(completed) -> {~"completed", ~"completed"};
